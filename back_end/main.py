@@ -187,4 +187,4 @@ def solve_calculus(req: CalculusRequest):
         raise HTTPException(status_code=400, detail=f"Lỗi cú pháp biểu thức toán học: {e}")
 
 frontend_path = os.path.join(os.path.dirname(__file__), "..", "front_end")
-app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")    
