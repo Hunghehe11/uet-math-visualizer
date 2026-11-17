@@ -1,9 +1,11 @@
+import os
 from fractions import Fraction
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from math_engine.matrix import Matrix
-from math_engine.calculus import CalculusEngine
+from .math_engine.matrix import Matrix
+from .math_engine.calculus import CalculusEngine
 
 app = FastAPI(title="UET Math Visualizer API")
 
@@ -183,3 +185,6 @@ def solve_calculus(req: CalculusRequest):
         raise HTTPException(status_code=400, detail=msg)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Lỗi cú pháp biểu thức toán học: {e}")
+
+frontend_path = os.path.join(os.path.dirname(__file__), "..", "front_end")
+app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
