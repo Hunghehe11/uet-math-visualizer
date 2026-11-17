@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UET Math Visualizer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">UET Math Visualizer</div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="algebra">Đại số tuyến tính</button>
+      <button class="tab-btn" data-tab="calculus">Giải tích 1 & Đồ thị</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- ==================== TAB 1: ĐẠI SỐ TUYẾN TÍNH ==================== -->
+    <section id="algebra" class="tab-content active">
+      <div class="panel">
+        <div class="controls-row">
+          <label>Hàng (m): <input type="number" id="rows-a" value="3" min="1" max="8" /></label>
+          <label>Cột (n): <input type="number" id="cols-a" value="3" min="1" max="8" /></label>
+          <button id="btn-gen-grid" class="btn secondary">Tạo lưới</button>
+          <label class="checkbox-label">
+            <input type="checkbox" id="as-fraction" checked /> Hiển thị phân số
+          </label>
+        </div>
+
+        <div class="matrices-wrapper">
+          <div class="matrix-box">
+            <h3>Ma trận A <span class="hint">(hỗ trợ phân số như 1/3, -2/5)</span></h3>
+            <div id="grid-a" class="matrix-grid"></div>
+          </div>
+
+          <div class="matrix-box" id="box-b">
+            <h3 id="title-b">Ma trận B / Vector vế phải b</h3>
+            <div class="controls-row small">
+              <label>Hàng B: <input type="number" id="rows-b" value="3" min="1" max="8" /></label>
+              <label>Cột B: <input type="number" id="cols-b" value="3" min="1" max="8" /></label>
+              <button id="btn-gen-b" class="btn secondary">Cập nhật B</button>
+            </div>
+            <div id="grid-b" class="matrix-grid"></div>
+          </div>
+        </div>
+
+        <div class="ops-group">
+          <span class="group-label">1 Ma trận (A):</span>
+          <button class="btn primary op-btn" data-op="analyze">RREF / Rank / Det</button>
+          <button class="btn primary op-btn" data-op="inverse">Nghịch đảo (A⁻¹)</button>
+          <button class="btn primary op-btn" data-op="transpose">Chuyển vị (Aᵀ)</button>
+          <button class="btn primary op-btn" data-op="lu">Phân tích A = LU</button>
+          <button class="btn primary op-btn" data-op="subspaces">Cơ sở Ker / Im / Row</button>
+        </div>
+
+        <div class="ops-group">
+          <span class="group-label">2 Ma trận (A & B):</span>
+          <button class="btn accent op-btn" data-op="solve">Giải hệ Ax = b</button>
+          <button class="btn accent op-btn" data-op="add">A + B</button>
+          <button class="btn accent op-btn" data-op="multiply">A × B</button>
+        </div>
+      </div>
+
+      <div id="matrix-error" class="error-box hidden"></div>
+      <div id="matrix-result" class="panel result-panel hidden"></div>
+    </section>
+
+    <!-- ==================== TAB 2: GIẢI TÍCH 1 ==================== -->
+    <section id="calculus" class="tab-content">
+      <div class="panel">
+        <div class="calc-inputs">
+          <div class="input-group wide">
+            <label for="calc-expr">Hàm số f(x)</label>
+            <input type="text" id="calc-expr" value="sin(x) + 0.5*x^2" placeholder="vd: sin(x)/x, ln(x), exp(-x^2)" />
+          </div>
+          <div class="input-group">
+            <label for="calc-x0">Điểm x₀ (hoặc inf)</label>
+            <input type="text" id="calc-x0" value="pi/3" />
+          </div>
+          <div class="input-group">
+            <label for="calc-a">Cận dưới a</label>
+            <input type="text" id="calc-a" value="-pi" />
+          </div>
+          <div class="input-group">
+            <label for="calc-b">Cận trên b</label>
+            <input type="text" id="calc-b" value="pi" />
+          </div>
+          <div class="input-group">
+            <label for="calc-lr">Learning Rate (GD)</label>
+            <input type="number" id="calc-lr" value="0.1" step="0.01" />
+          </div>
+        </div>
+        <button id="btn-calc" class="btn primary">Tính toán & Vẽ đồ thị</button>
+      </div>
+
+      <div id="calc-error" class="error-box hidden"></div>
+
+      <div id="calc-metrics" class="metrics-grid hidden"></div>
+
+      <div class="panel canvas-panel">
+        <div class="legend">
+          <span><i class="dot blue"></i> f(x)</span>
+          <span><i class="dot green"></i> f'(x)</span>
+          <span><i class="dot red"></i> Gradient Descent</span>
+        </div>
+        <canvas id="graph-canvas" width="820" height="420"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
