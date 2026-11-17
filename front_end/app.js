@@ -53,7 +53,6 @@ function createMatrixTableHTML(matrix, title = "") {
   return html;
 }
 
-// Khởi tạo lưới mặc định 3x3
 renderGrid("grid-a", 3, 3, "0", true);
 renderGrid("grid-b", 3, 3, "1", false);
 
@@ -69,7 +68,6 @@ document.getElementById("btn-gen-b").addEventListener("click", () => {
   renderGrid("grid-b", rB, cB, "0", false);
 });
 
-// Xử lý bấm các nút phép toán Ma trận
 document.querySelectorAll(".op-btn").forEach((btn) => {
   btn.addEventListener("click", async () => {
     const op = btn.dataset.op;
@@ -155,24 +153,23 @@ document.querySelectorAll(".op-btn").forEach((btn) => {
   });
 });
 
-// ==================== 3. GIẢI TÍCH 1 & VẼ ĐỒ THỊ CANVAS ====================
-function drawGraph(points, gdHistory = []) {
-  const canvas = document.getElementById("graph-canvas");
-  const ctx = canvas.getContext("2d");
-  const W = canvas.width;
-  const H = canvas.height;
-  const pad = 40;
+// ==================== 3. GIẢI TÍCH 1 & ĐỒ THỊ TƯƠNG TÁC (ZOOM / PAN) ====================
+const canvas = document.getElementById("graph-canvas");
+const PAD = 40;
 
-  ctx.clearRect(0, 0, W, H);
+let graphState = {
+  points: [],
+  gdHistory: [],
+  bounds: null,       // { xMin, xMax, yMin, yMax }
+  defaultBounds: null,
+  isDragging: false,
+  dragStart: { x: 0, y: 0 },
+  dragBounds: null,
+};
 
-  if (!points || points.length === 0) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "15px system-ui";
-    ctx.fillText("Không có điểm hợp lệ trong miền xác định để vẽ đồ thị.", W / 2 - 180, H / 2);
-    return;
-  }
+canvas.style.cursor = "grab";
 
-  // Tìm biên tọa độ (x, y) từ f(x), f'(x) và đường đi Gradient Descent
+function computeInitialBounds(points, gdHistory) {
   const xs = points.map((p) => p.x);
   const ys = [];
   points.forEach((p) => {
@@ -193,45 +190,68 @@ function drawGraph(points, gdHistory = []) {
   if (yMax === yMin) { yMin -= 1; yMax += 1; }
 
   const yMargin = (yMax - yMin) * 0.1;
-  yMin -= yMargin;
-  yMax += yMargin;
+  return {
+    xMin,
+    xMax,
+    yMin: yMin - yMargin,
+    yMax: yMax + yMargin,
+  };
+}
 
-  const toPxX = (x) => ((x - xMin) / (xMax - xMin)) * (W - 2 * pad) + pad;
-  const toPxY = (y) => H - (((y - yMin) / (yMax - yMin)) * (H - 2 * pad) + pad);
+function renderCanvas() {
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width;
+  const H = canvas.height;
+  const plotW = W - 2 * PAD;
+  const plotH = H - 2 * PAD;
 
-  // 1. Vẽ lưới mờ & Trục tọa độ Ox, Oy
+  ctx.clearRect(0, 0, W, H);
+
+  if (!graphState.points || graphState.points.length === 0 || !graphState.bounds) {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "15px system-ui";
+    ctx.fillText("Không có điểm hợp lệ trong miền xác định để vẽ đồ thị.", W / 2 - 180, H / 2);
+    return;
+  }
+
+  const { xMin, xMax, yMin, yMax } = graphState.bounds;
+  const toPxX = (x) => ((x - xMin) / (xMax - xMin)) * plotW + PAD;
+  const toPxY = (y) => H - (((y - yMin) / (yMax - yMin)) * plotH + PAD);
+
+  // 1. Vẽ lưới mờ & khung vùng vẽ
   ctx.strokeStyle = "#1e293b";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 8; i++) {
-    const gx = pad + (i * (W - 2 * pad)) / 8;
-    const gy = pad + (i * (H - 2 * pad)) / 8;
-    ctx.beginPath(); ctx.moveTo(gx, pad); ctx.lineTo(gx, H - pad); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(pad, gy); ctx.lineTo(W - pad, gy); ctx.stroke();
+    const gx = PAD + (i * plotW) / 8;
+    const gy = PAD + (i * plotH) / 8;
+    ctx.beginPath(); ctx.moveTo(gx, PAD); ctx.lineTo(gx, H - PAD); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD, gy); ctx.lineTo(W - PAD, gy); ctx.stroke();
   }
 
+  // Cắt (clip) vùng vẽ bên trong khung lưới để đường cong không tràn ra lề khi zoom
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(PAD, PAD, plotW, plotH);
+  ctx.clip();
+
+  // 2. Trục tọa độ Ox, Oy
   ctx.strokeStyle = "#64748b";
   ctx.lineWidth = 1.5;
   if (xMin <= 0 && xMax >= 0) {
     const ox = toPxX(0);
-    ctx.beginPath(); ctx.moveTo(ox, pad); ctx.lineTo(ox, H - pad); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox, PAD); ctx.lineTo(ox, H - PAD); ctx.stroke();
   }
   if (yMin <= 0 && yMax >= 0) {
     const oy = toPxY(0);
-    ctx.beginPath(); ctx.moveTo(pad, oy); ctx.lineTo(W - pad, oy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD, oy); ctx.lineTo(W - PAD, oy); ctx.stroke();
   }
 
-  // Nhãn giá trị biên trên trục
-  ctx.fillStyle = "#94a3b8";
-  ctx.font = "11px monospace";
-  ctx.fillText(`x: [${xMin.toFixed(2)}, ${xMax.toFixed(2)}]`, pad, H - 12);
-  ctx.fillText(`y: [${yMin.toFixed(2)}, ${yMax.toFixed(2)}]`, W - 150, H - 12);
-
-  // 2. Vẽ đường đạo hàm f'(x) (xanh lá đứt nét)
+  // 3. Đường đạo hàm f'(x)
   ctx.strokeStyle = "#4ade80";
   ctx.lineWidth = 1.8;
   ctx.setLineDash([5, 4]);
   ctx.beginPath();
-  points.forEach((p, idx) => {
+  graphState.points.forEach((p, idx) => {
     const px = toPxX(p.x);
     const py = toPxY(p.dy);
     if (idx === 0) ctx.moveTo(px, py);
@@ -240,11 +260,11 @@ function drawGraph(points, gdHistory = []) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // 3. Vẽ đường cong gốc f(x) (xanh dương liền nét)
+  // 4. Đường cong gốc f(x)
   ctx.strokeStyle = "#38bdf8";
   ctx.lineWidth = 2.5;
   ctx.beginPath();
-  points.forEach((p, idx) => {
+  graphState.points.forEach((p, idx) => {
     const px = toPxX(p.x);
     const py = toPxY(p.y);
     if (idx === 0) ctx.moveTo(px, py);
@@ -252,7 +272,8 @@ function drawGraph(points, gdHistory = []) {
   });
   ctx.stroke();
 
-  // 4. Vẽ quỹ đạo các bước nhảy Gradient Descent (chấm đỏ)
+  // 5. Quỹ đạo Gradient Descent
+  const gdHistory = graphState.gdHistory;
   if (gdHistory && gdHistory.length > 0) {
     ctx.strokeStyle = "rgba(248, 113, 113, 0.65)";
     ctx.lineWidth = 1.5;
@@ -274,7 +295,116 @@ function drawGraph(points, gdHistory = []) {
       ctx.fill();
     });
   }
+
+  ctx.restore();
+
+  // 6. Nhãn tọa độ hiện tại và gợi ý thao tác
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "11px monospace";
+  ctx.fillText(`x: [${xMin.toFixed(2)}, ${xMax.toFixed(2)}]`, PAD, H - 12);
+  ctx.fillText(`y: [${yMin.toFixed(2)}, ${yMax.toFixed(2)}]`, W - 165, H - 12);
+  ctx.fillText("Lăn chuột: Zoom | Kéo thả: Di chuyển | Nháy đúp: Đặt lại", PAD, 22);
 }
+
+function drawGraph(points, gdHistory = []) {
+  graphState.points = points || [];
+  graphState.gdHistory = gdHistory || [];
+  if (graphState.points.length > 0) {
+    const init = computeInitialBounds(graphState.points, graphState.gdHistory);
+    graphState.bounds = { ...init };
+    graphState.defaultBounds = { ...init };
+  } else {
+    graphState.bounds = null;
+    graphState.defaultBounds = null;
+  }
+  renderCanvas();
+}
+
+// Sự kiện lăn chuột để phóng to / thu nhỏ quanh vị trí trỏ chuột
+canvas.addEventListener("wheel", (e) => {
+  if (!graphState.bounds) return;
+  e.preventDefault();
+
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mouseX = (e.clientX - rect.left) * scaleX;
+  const mouseY = (e.clientY - rect.top) * scaleY;
+
+  const plotW = canvas.width - 2 * PAD;
+  const plotH = canvas.height - 2 * PAD;
+
+  // Tỷ lệ vị trí con trỏ trong vùng vẽ [0..1]
+  const rx = Math.min(1, Math.max(0, (mouseX - PAD) / plotW));
+  const ry = Math.min(1, Math.max(0, (canvas.height - PAD - mouseY) / plotH));
+
+  const { xMin, xMax, yMin, yMax } = graphState.bounds;
+  const mathX = xMin + rx * (xMax - xMin);
+  const mathY = yMin + ry * (yMax - yMin);
+
+  const zoomFactor = e.deltaY < 0 ? 0.85 : 1.18;
+  const newSpanX = (xMax - xMin) * zoomFactor;
+  const newSpanY = (yMax - yMin) * zoomFactor;
+
+  graphState.bounds = {
+    xMin: mathX - rx * newSpanX,
+    xMax: mathX + (1 - rx) * newSpanX,
+    yMin: mathY - ry * newSpanY,
+    yMax: mathY + (1 - ry) * newSpanY,
+  };
+
+  renderCanvas();
+}, { passive: false });
+
+// Sự kiện nhấn và kéo chuột để di chuyển (Pan)
+canvas.addEventListener("mousedown", (e) => {
+  if (!graphState.bounds) return;
+  graphState.isDragging = true;
+  graphState.dragStart = { x: e.clientX, y: e.clientY };
+  graphState.dragBounds = { ...graphState.bounds };
+  canvas.style.cursor = "grabbing";
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!graphState.isDragging || !graphState.dragBounds) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+
+  const dxPx = (e.clientX - graphState.dragStart.x) * scaleX;
+  const dyPx = (e.clientY - graphState.dragStart.y) * scaleY;
+
+  const plotW = canvas.width - 2 * PAD;
+  const plotH = canvas.height - 2 * PAD;
+
+  const { xMin, xMax, yMin, yMax } = graphState.dragBounds;
+  const dxMath = (dxPx / plotW) * (xMax - xMin);
+  const dyMath = (dyPx / plotH) * (yMax - yMin);
+
+  graphState.bounds = {
+    xMin: xMin - dxMath,
+    xMax: xMax - dxMath,
+    yMin: yMin + dyMath,
+    yMax: yMax + dyMath,
+  };
+
+  renderCanvas();
+});
+
+window.addEventListener("mouseup", () => {
+  if (graphState.isDragging) {
+    graphState.isDragging = false;
+    canvas.style.cursor = "grab";
+  }
+});
+
+// Nháy đúp chuột để đưa khung hình về mặc định
+canvas.addEventListener("dblclick", () => {
+  if (!graphState.defaultBounds) return;
+  graphState.bounds = { ...graphState.defaultBounds };
+  renderCanvas();
+});
 
 document.getElementById("btn-calc").addEventListener("click", async () => {
   const errBox = document.getElementById("calc-error");
@@ -302,7 +432,6 @@ document.getElementById("btn-calc").addEventListener("click", async () => {
       throw new Error(json.detail || "Lỗi tính toán giải tích.");
     }
 
-    // Xử lý hiển thị giới hạn
     let limitText = "Không tồn tại";
     if (json.limit) {
       if (json.limit.exists) limitText = `${json.limit.value}`;
@@ -312,7 +441,6 @@ document.getElementById("btn-calc").addEventListener("click", async () => {
       }
     }
 
-    // Xử lý hiển thị điểm hội tụ Gradient Descent
     let gdText = "Không khả dụng";
     let gdHistory = [];
     if (json.gd) {
@@ -356,7 +484,6 @@ document.getElementById("btn-calc").addEventListener("click", async () => {
   }
 });
 
-// Tự động chạy tính toán & vẽ đồ thị mẫu ngay khi mở tab Giải tích lần đầu
 document.querySelector('[data-tab="calculus"]').addEventListener("click", () => {
   const metricsBox = document.getElementById("calc-metrics");
   if (metricsBox.classList.contains("hidden")) {
